@@ -27,18 +27,17 @@ $$\frac{\partial{z(t)}}{\partial{t}} = f_{\text{latent}}(z(t), t, \theta)$$
 
 In practice, we get back evaluations of $z(t)$ at our pre-defined timesteps $[t_1, \dots, t_n]$. These are then fed into a decoder ANN, which maps the $z(t_i)$ back to the SST predictions $T(t_i)$.
 
-$$\tilde{T}_{0:n} = f_{\text{dec}}(z_{0:n})$$
+$$\hat{T}_{0:n} = f_{\text{dec}}(z_{0:n})$$
 
 ### The Loss
 
 In order to evaluate the performance of the model, I went for the negative Evidence Lower Bound (ELBO), since we are essentially using a VAE here. Concretely, the ELBO was calculated as:
-$$
-\begin{align}
-    \text{ELBO} &= \mathbb{E}_{q(z  |  T )} [\ln p(T  |  z)] - \text{KL}[q(z  |  T) \ \lVert \ p(z)] \\
-                &\approx -\sum_{i = 0}^n \ \lVert T(t_i) - \tilde{T}(t_i) \rVert^2 - \text{KL}[q(z  |  T) \ \lVert \ p(z)] \\
-                &= -\sum_{i = 0}^n \ \lVert T(t_i) - \tilde{T}(t_i) \rVert^2 - \text{KL}[\mathcal{N}(\mu_{\text{rec}}, \Sigma_{\text{rec}}) \ \lVert \ \mathcal{N}(0, I)] \\
-                &= -\sum_{i = 0}^n \ \lVert T(t_i) - \tilde{T}(t_i) \rVert^2 - \frac{1}{2}\sum_{i = 0}^n(1 + \log(\sigma_i^2) - \mu_i^2 - \sigma_i^2)
-\end{align}
-$$
+$$\text{ELBO} = \mathbb{E}_{q(z  |  T )} [\ln p(T  |  z)] - \text{KL}[q(z  |  T) \ \lVert \ p(z)]$$
+
+$$\approx -\sum_{i = 0}^n \ \lVert T(t_i) - \tilde{T}(t_i) \rVert^2 - \text{KL}[q(z  |  T) \ \lVert \ p(z)]$$
+
+$$= -\sum_{i = 0}^n \ \lVert T(t_i) - \tilde{T}(t_i) \rVert^2 - \text{KL}[\mathcal{N}(\mu_{\text{rec}}, \Sigma_{\text{rec}}) \ \lVert \ \mathcal{N}(0, I)]$$
+
+$$= -\sum_{i = 0}^n \ \lVert T(t_i) - \tilde{T}(t_i) \rVert^2 - \frac{1}{2}\sum_{i = 0}^n(1 + \log(\sigma_i^2) - \mu_i^2 - \sigma_i^2)$$
 
 Here we use the reconstruction loss as a surrogate for the log-likelihood of the SST's given the latent variables sampled from the recognition network's output distribution. For the KL divergence it is common to choose the standard normal as the prior $p(z)$, which acts as a regularizer for the values $z$ can attain.
