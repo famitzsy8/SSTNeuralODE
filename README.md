@@ -1,5 +1,7 @@
 # SSTNeuralODE
 
+A small experiment by Yuri Simantob.
+
 ## Introduction
 
 Sea Surface Temperature (SST) prediction has seen a huge evolution in the last few decades. The new machine-learning paradigm brought forward a lot of new approaches on how to model the dynamics of SST, and thus there have been many new proposals on how to use Artificial Neural Networks for the specific task. Many different architectures were used, with the state-of-the-art architecture being recurrent architectures like LSTM and convolutional neural networks (CNN's). In this experiment, I will fit a Latent Generative Time-Series model using Neural ODE's to the SST data and evaluate its effectiveness in SST prediction. Although Latent ODE models have been proven to be most effective at predicting irregularly sampled time-series data, they have also shown their strength in modeling continuous-time dynamics and are theoretically suitable for SST prediction. This is an attempt to show this experimentally.
@@ -30,12 +32,13 @@ $$\tilde{T}_{0:n} = f_{\text{dec}}(z_{0:n})$$
 ### The Loss
 
 In order to evaluate the performance of the model, I went for the negative Evidence Lower Bound (ELBO), since we are essentially using a VAE here. Concretely, the ELBO was calculated as:
-
+$$
 \begin{align}
     \text{ELBO} &= \mathbb{E}_{q(z  |  T )} [\ln p(T  |  z)] - \text{KL}[q(z  |  T) \ \lVert \ p(z)] \\
                 &\approx -\sum_{i = 0}^n \ \lVert T(t_i) - \tilde{T}(t_i) \rVert^2 - \text{KL}[q(z  |  T) \ \lVert \ p(z)] \\
                 &= -\sum_{i = 0}^n \ \lVert T(t_i) - \tilde{T}(t_i) \rVert^2 - \text{KL}[\mathcal{N}(\mu_{\text{rec}}, \Sigma_{\text{rec}}) \ \lVert \ \mathcal{N}(0, I)] \\
                 &= -\sum_{i = 0}^n \ \lVert T(t_i) - \tilde{T}(t_i) \rVert^2 - \frac{1}{2}\sum_{i = 0}^n(1 + \log(\sigma_i^2) - \mu_i^2 - \sigma_i^2)
 \end{align}
+$$
 
 Here we use the reconstruction loss as a surrogate for the log-likelihood of the SST's given the latent variables sampled from the recognition network's output distribution. For the KL divergence it is common to choose the standard normal as the prior $p(z)$, which acts as a regularizer for the values $z$ can attain.
