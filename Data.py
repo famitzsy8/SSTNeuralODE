@@ -9,7 +9,7 @@ import torch
 
 class Data:
     
-    def __init__(self, filename):
+    def __init__(self, filename, test=False, trainDays=0):
         
         self.filename = filename
         
@@ -34,10 +34,19 @@ class Data:
         self.T = self.T.reshape(-1, self.longDim, self.latDim)
         self.T = torch.Tensor(self.T)
         
-        self.t = torch.tensor(np.arange(0, self.T_train.shape[0]), requires_grad=False)
-        self.t = self.t.double()
         
-        assert np.count_nonzero(self.T_train == -1) + np.count_nonzero(self.U_train == -1) + np.count_nonzero(self.t == -1) == 0
+        if test:   
+            self.t = torch.tensor(np.arange(1, 1 + (self.T.shape[0] / trainDays), 1 / trainDays), requires_grad=False)
+            # In case np.arange rounds up the upper limit for creating the array --> larger t.shape than T.shape
+            if self.t.shape[0] > self.T.shape[0]:
+                drop_no = self.t.shape[0] - self.T.shape[0]
+                self.t = self.t[:-drop_no]
+            self.t = self.t.double()
+        else:
+            self.t = torch.tensor(np.arange(0, 1, 1 / self.T.shape[0]), requires_grad=False)
+            self.t = self.t.double()
+        
+        assert np.count_nonzero(self.T == -1) + np.count_nonzero(self.t == -1) == 0
         
         self.days = self.t.size(0)
     
@@ -57,6 +66,8 @@ class Data:
         
         for i, pred in enumerate(T_pred):
             
-            loss += norm((pred - self.T_train[i]), p='fro')
+            loss += norm((pred - self.T[i]), p='fro')
+            
+            #print(loss)
         
         return loss
