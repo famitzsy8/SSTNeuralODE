@@ -1,11 +1,5 @@
 import numpy as np
-from torch.nn import functional as F
-import torch.optim as optim
-from torch import nn
-from torch import mean, exp, from_numpy, log, tensor, norm, zeros, cat, is_floating_point
-from scipy.stats import norm as nm
-import math
-import time
+from torch import cat
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -13,11 +7,6 @@ from matplotlib.colors import LightSource
 
 import os
 import imageio.v2 as imageio
-
-from torchdiffeq import odeint
-#from torchviz import make_dot
-
-from Data import Data
 
 class Results:
     
@@ -36,6 +25,11 @@ class Results:
         assert pred_ts.dim() == 1, "Observation timestep array has dimension {} and not 1".format(pred_ts.dim())
         self.obs_step = int(obs_ts[1] - obs_ts[0])
         self.pred_step = int(pred_ts[1] - pred_ts[0])
+        
+    def appendResults(self, new_preds, new_ts):
+        
+        self.predictions = cat(self.predictions, new_preds)
+        self.pred_ts = cat(self.pred_ts, new_ts)
 
 
 class Plot:
@@ -58,8 +52,6 @@ class Plot:
             plt.xlabel('Eastward Position')
             plt.ylabel('Northward Position')
             
-            
-        
             # Save plot to .png image file
             filename = "plot{}.png".format(i)
             plt.savefig(filename)
@@ -74,7 +66,7 @@ class Plot:
         
         sst_fields = self.results.predictions
         pred_ts = self.results.pred_ts
-        sst_obs = self.results.model.data.T_train
+        sst_obs = self.results.model.trainData.T
         obs_ts = self.results.obs_ts
         
         
@@ -122,7 +114,7 @@ class Plot:
     def make_gifs(self, filenames, title):
         
         # Build gif
-        with imageio.get_writer('{}.gif'.format(title), mode='I') as writer:
+        with imageio.get_writer('./predictions/{}.gif'.format(title), mode='I') as writer:
             for filename in filenames:
                 image = imageio.imread(filename)
                 writer.append_data(image)
@@ -162,7 +154,7 @@ class TrainLossPlot:
         self.reconstructionLossArray.append(reconstruction_loss)
         self.epochsTrained += 1
         
-    def plot(self):
+    def plot(self, alpha, beta):
         
         plt.figure(figsize=(10, 6))
         
@@ -175,7 +167,7 @@ class TrainLossPlot:
         plt.title('Train Loss Metrics')
         plt.legend()
         
-        plt.savefig("./TrainLossMetric")
+        plt.savefig("./trainLosses/TrainLossMetric_A{}_B{}_E{}.png".format(alpha, beta, self.epochsTrained))
         
         
 class TestLossPlot:
@@ -191,7 +183,7 @@ class TestLossPlot:
         self.reconstructionLossArray.append(reconstruction_loss)
         self.epochsTrained += 1
         
-    def plot(self):
+    def plot(self, alpha, beta):
         
         plt.figure(figsize=(10, 6))
         
@@ -204,4 +196,4 @@ class TestLossPlot:
         plt.title('Test Loss Metric')
         plt.legend()
         
-        plt.savefig("./TestLossMetric")
+        plt.savefig("./testLosses/TestLossMetric_A{}_B{}_E{}.png".format(alpha, beta, self.epochsTrained))

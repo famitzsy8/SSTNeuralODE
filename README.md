@@ -27,7 +27,7 @@ $$\frac{\partial{z(t)}}{\partial{t}} = f_{\text{latent}}(z(t), t, \theta)$$
 
 In practice, we get back evaluations of $z(t)$ at our pre-defined timesteps $[t_1, \dots, t_n]$. These are then fed into a decoder ANN, which maps the $z(t_i)$ back to the SST predictions $T(t_i)$.
 
-$$\hat{T}_{0:n} = f_{\text{dec}}(z_{0:n})$$
+$$T_{0:n} = f_{\text{dec}}(z_{0:n})$$
 
 ### The Loss
 

@@ -1,10 +1,9 @@
 import torch
-from torch import nn, optim, randn, exp, zeros, sum, log
-import torch.nn.functional as F
+from torch import nn, optim, randn, exp, zeros, sum
 from torchdiffeq import odeint
-import numpy as np
-from Data import Data
+import math
 from Plot import Results, TrainLossPlot, TestLossPlot
+from Params import ConvParams
 
 
 class LSTMEncoder(nn.Module):
@@ -12,16 +11,29 @@ class LSTMEncoder(nn.Module):
     def __init__(self, input_dim, hidden_dim, latent_dim):
         
         super(LSTMEncoder, self).__init__()
-        self.lstm = nn.LSTM(input_dim, hidden_dim, batch_first=True)
+        convParams = ConvParams(math.sqrt(input_dim))
+        
+        self.conv1 = nn.Conv2d(convParams.inChannels, convParams.outChannels, convParams.kernelSize, convParams.stride, convParams.padding)
+
+        self.lstm = nn.LSTM(convParams.outChannels * convParams.outWidth ** 2, hidden_dim, batch_first=True)
         self.fc_mu = nn.Linear(hidden_dim, latent_dim)
         self.fc_logvar = nn.Linear(hidden_dim, latent_dim)
         
     def forward(self, T):
+        # Reshaping to (batch_size, input_channels, width, height) for torch.Conv2D
+        T = T.reshape(T.shape[0], 1, T.shape[1], T.shape[2])
+        T = self.conv1(T)
         
+        # Reshaping to (batch_size, width * height) for torch.LSTM
+        T = T.reshape(T.shape[0], -1)
         _, (hidden, _) = self.lstm(T)
+        
+        # Taking the last hidden layer to feed to the mu, sigma networks
         hidden = hidden[-1]
+        
         mu = self.fc_mu(hidden)
         logvar = self.fc_logvar(hidden)
+        
         return mu, logvar
     
 class Decoder(nn.Module):
@@ -83,15 +95,15 @@ class SSTModel:
         
         return odeint(self.odefunc, z0, t)
     
-    def train(self, nepochs):
+    def train(self):
         
         T = self.trainData.T
         t = self.trainData.t
         
         path_to_save_model = "./models/lastModel.pth"
         
-        for i in range(nepochs):
-            T = T.reshape(self.trainData.days, -1)
+        for i in range(self.nepochs):
+            #T = T.reshape(self.trainData.days, -1)
             
             qz0_mean, qz0_logvar = self.rec.forward(reversed(T))
             
@@ -112,11 +124,13 @@ class SSTModel:
             self.trainLossPlot.addPoint((50 * kl).detach().numpy(), (self.alpha * reconstruction_loss).detach().numpy())
             loss.backward()
             
-            for name, parameter in model.rec.named_parameters():
-                if parameter.grad is not None:
-                    print(f"{name}: Gradient Norm: {parameter.grad.data.norm(2).item()}")
+            #for name, parameter in self.rec.named_parameters():
+                #if parameter.grad is not None:
+                    #print(f"{name}: Gradient Norm: {parameter.grad.data.norm(2).item()}")
             
-            nn.utils.clip_grad_norm_(model.rec.parameters(), max_norm=1.0)
+            nn.utils.clip_grad_norm_(self.rec.parameters(), max_norm=1.0)
+            nn.utils.clip_grad_norm_(self.odefunc.parameters(), max_norm=1.0)
+            nn.utils.clip_grad_norm_(self.dec.parameters(), max_norm=1.0)
             
             self.optimizer.step()
             
@@ -129,26 +143,24 @@ class SSTModel:
                 'loss': loss.item(),  # Assuming loss is a scalar tensor
             }, path_to_save_model)
             
-            self.results = Results(self, T_pred, self.trainData.T, self.trainData.t, self.trainData.t)
             self.hasResults = True
             
-            checkpoint = torch.load("./models/lastModel.pth")
+            #checkpoint = torch.load("./models/lastModel.pth")
 
-            model.rec.load_state_dict(checkpoint['rec_model_state_dict'])
-            model.odefunc.load_state_dict(checkpoint['odefunc_model_state_dict'])
-            model.dec.load_state_dict(checkpoint['dec_model_state_dict'])
-            model.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            model.test()
+            #self.rec.load_state_dict(checkpoint['rec_model_state_dict'])
+            #self.odefunc.load_state_dict(checkpoint['odefunc_model_state_dict'])
+            #self.dec.load_state_dict(checkpoint['dec_model_state_dict'])
+            #self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            self.test()
             
             if i % 1 == 0:
-                print("Iteration: {}, Current Loss: {}\n".format(i, loss.item()))
-                print("Reconstruction: {} and KL:{}".format(self.alpha * reconstruction_loss, self.beta * kl))
+                pass
+                #print("Iteration: {}, Current Loss: {}\n".format(i, loss.item()))
+                #print("Reconstruction: {} and KL:{}".format(self.alpha * reconstruction_loss, self.beta * kl))
                 
     def test(self):
         
         T = self.testData.T
-        #print(T.shape, self.testData.t.shape, self.trainData.t)
-        T = T.reshape(self.testData.days, -1)
         
         t = self.testData.t
         
@@ -164,22 +176,13 @@ class SSTModel:
         
         reconstruction_loss = self.testData.reconstructionLoss(T_pred)
         
+        self.results = Results(self, T_pred, self.testData.T, self.testData.t, self.testData.t)
+        
         # Standard normal distribuion parameters for the prior
-        pz0_mean = pz0_logvar = zeros(z0.size())
         kl = 0.5 * sum(qz0_mean + exp(qz0_logvar) - 1 - qz0_logvar)
         
         loss = reconstruction_loss + kl
         self.testLossPlot.addPoint(loss.detach().numpy())
-        
-        print("Test loss: {}".format(loss))
 
-trainData = Data("data/trainSST.nc")
-testData = Data("data/testSST.nc", True, trainData.days)
-
-model = SSTModel(trainData, testData, 16, 64, 32, 64, 40, 0.001, 50)
-
-model.train(80)
-model.trainLossPlot.plot()
-model.testLossPlot.plot()
 
     
